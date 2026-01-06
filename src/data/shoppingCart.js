@@ -42,26 +42,50 @@ export class ShoppingCartOriginator {
 export class ShoppingCartCaretaker {
   constructor(originator) {
     this.originator = originator;
-    this.history = [];
+    this.undoStack = [];
+    this.redoStack = [];
   }
 
   backup() {
     console.log("Caretaker: Saving Originator's state...");
-    this.history.push(this.originator.save());
+    this.undoStack.push(this.originator.save());
+    this.redoStack = [];
   }
 
-  undo() {
-    if (!this.history.length) return null;
+  undo(currentState) {
+    if (!this.undoStack.length) return null;
 
-    const memento = this.history.pop();
+    // Save current state to redo stack
+    this.originator.setState(currentState);
+    this.redoStack.push(this.originator.save());
+
+    const memento = this.undoStack.pop();
     console.log("Caretaker: Restoring state to:", memento.getState());
 
     this.originator.restore(memento);
     return this.originator.items();
   }
 
-  hasHistory() {
-    return this.history.length > 0;
+  redo(currentState) {
+    if (!this.redoStack.length) return null;
+
+    // Save current state to undo stack
+    this.originator.setState(currentState);
+    this.undoStack.push(this.originator.save());
+
+    const memento = this.redoStack.pop();
+    console.log("Caretaker: Redoing state to:", memento.getState());
+
+    this.originator.restore(memento);
+    return this.originator.items();
+  }
+
+  canUndo() {
+    return this.undoStack.length > 0;
+  }
+
+  canRedo() {
+    return this.redoStack.length > 0;
   }
 }
 

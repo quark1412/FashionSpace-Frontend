@@ -86,7 +86,7 @@ function ShoppingCart() {
     // Save state before changing
     originator.current.setState(carts);
     caretaker.current.backup();
-    setCanUndo(true);
+    updateUndoRedoState();
 
     dispatch(removeItem({ productId, color, size }));
   };
@@ -95,7 +95,7 @@ function ShoppingCart() {
     // Save state before changing
     originator.current.setState(carts);
     caretaker.current.backup();
-    setCanUndo(true);
+    updateUndoRedoState();
 
     Object.keys(selectedItems).forEach((key) => {
       const [productId, color, size] = key.split("-");
@@ -111,20 +111,34 @@ function ShoppingCart() {
     // Save state before changing
     originator.current.setState(carts);
     caretaker.current.backup();
-    setCanUndo(true);
+    updateUndoRedoState();
 
     dispatch(clearCart());
     setSelectedItems({});
   };
 
+  const [canRedo, setCanRedo] = useState(false);
+
+  const updateUndoRedoState = () => {
+    setCanUndo(caretaker.current.canUndo());
+    setCanRedo(caretaker.current.canRedo());
+  };
+
   const handleUndo = () => {
-    const previousState = caretaker.current.undo();
+    const previousState = caretaker.current.undo(carts);
     if (previousState) {
       dispatch(restoreCart(previousState));
       toast.success("Đã hoàn tác thay đổi!", { duration: 2000 });
-      if (!caretaker.current.hasHistory()) {
-        setCanUndo(false);
-      }
+      updateUndoRedoState();
+    }
+  };
+
+  const handleRedo = () => {
+    const nextState = caretaker.current.redo(carts);
+    if (nextState) {
+      dispatch(restoreCart(nextState));
+      toast.success("Đã thực hiện lại thay đổi!", { duration: 2000 });
+      updateUndoRedoState();
     }
   };
 
@@ -214,6 +228,14 @@ function ShoppingCart() {
                               Hoàn tác
                             </button>
                           )}
+                          {canRedo && (
+                            <button
+                              className="px-8 py-3 text-white font-medium bg-gray-700 rounded-lg hover:bg-gray-600"
+                              onClick={handleRedo}
+                            >
+                              Làm lại
+                            </button>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -294,6 +316,14 @@ function ShoppingCart() {
                     onClick={handleUndo}
                   >
                     Hoàn tác
+                  </button>
+                )}
+                {canRedo && (
+                  <button
+                    className="px-10 py-3 text-white font-medium bg-gray-700 rounded-lg hover:bg-gray-600"
+                    onClick={handleRedo}
+                  >
+                    Làm lại
                   </button>
                 )}
               </div>
