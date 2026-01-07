@@ -1,17 +1,25 @@
-import { useState, useEffect, useContext, useMemo } from "react";
+import { useState, useEffect, useContext, useMemo, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { Modal, Button } from "flowbite-react";
 
 import AuthContext from "../../context/AuthContext.js";
-import { removeItem, clearCart, mergeCart } from "../../stores/cart.js";
+import { removeItem, clearCart, mergeCart, restoreCart } from "../../stores/cart.js";
 import { FREE_SHIPPING, SHIPPING_RATE } from "../../utils/Constants.js";
 
 import CartItem from "../../components/CartItem.jsx";
 import Banner from "../../components/Banner.jsx";
 import CheckBox from "../../components/CheckBox.jsx";
 import { HiOutlineExclamationCircle } from "react-icons/hi";
-import { getProductById } from "../../data/products.js";
+import {
+  getProductById,
+  ShoppingCartOriginator,
+  ShoppingCartCaretaker,
+} from "../../data/products.js";
+import {
+  ShoppingCartCaretaker as CartCaretaker,
+  ShoppingCartOriginator as CartOriginator,
+} from "../../data/shoppingCart.js";
 import { formatToVND } from "../../utils/format.js";
 import Error from "../Error.jsx";
 import Cookies from "js-cookie";
@@ -29,6 +37,11 @@ function ShoppingCart() {
   const [type, setType] = useState("");
   const [openModal, setOpenModal] = useState(false);
   const [subTotal, setSubTotal] = useState(0);
+
+  // Memento Pattern Initialization
+  const originator = useRef(new CartOriginator());
+  const caretaker = useRef(new CartCaretaker(originator.current));
+  const [canUndo, setCanUndo] = useState(false);
 
   const selectedCartItems = carts.filter(
     (product) =>
@@ -70,10 +83,20 @@ function ShoppingCart() {
   };
 
   const handleRemoveItem = (productId, color, size) => {
+    // Save state before changing
+    originator.current.setState(carts);
+    caretaker.current.backup();
+    updateUndoRedoState();
+
     dispatch(removeItem({ productId, color, size }));
   };
 
   const handleRemoveSelectedItems = () => {
+    // Save state before changing
+    originator.current.setState(carts);
+    caretaker.current.backup();
+    updateUndoRedoState();
+
     Object.keys(selectedItems).forEach((key) => {
       const [productId, color, size] = key.split("-");
       if (selectedItems[key]) {
@@ -85,8 +108,38 @@ function ShoppingCart() {
   };
 
   const handleClearCart = () => {
+    // Save state before changing
+    originator.current.setState(carts);
+    caretaker.current.backup();
+    updateUndoRedoState();
+
     dispatch(clearCart());
     setSelectedItems({});
+  };
+
+  const [canRedo, setCanRedo] = useState(false);
+
+  const updateUndoRedoState = () => {
+    setCanUndo(caretaker.current.canUndo());
+    setCanRedo(caretaker.current.canRedo());
+  };
+
+  const handleUndo = () => {
+    const previousState = caretaker.current.undo(carts);
+    if (previousState) {
+      dispatch(restoreCart(previousState));
+      toast.success("Đã hoàn tác thay đổi!", { duration: 2000 });
+      updateUndoRedoState();
+    }
+  };
+
+  const handleRedo = () => {
+    const nextState = caretaker.current.redo(carts);
+    if (nextState) {
+      dispatch(restoreCart(nextState));
+      toast.success("Đã thực hiện lại thay đổi!", { duration: 2000 });
+      updateUndoRedoState();
+    }
   };
 
   const handleConfirmation = (type) => {
@@ -156,16 +209,34 @@ function ShoppingCart() {
                 {carts.length === 0 ? (
                   <tr>
                     <td colSpan={6}>
-                      <div className="text-center w-full flex flex-row justify-center gap-x-5 items-center mt-5">
+                      <div className="text-center w-full flex flex-col justify-center gap-y-5 items-center mt-5">
                         <p className="text-xl font-medium">
                           Không có sản phẩm trong giỏ hàng.
                         </p>
-                        <Link
-                          to="/products"
-                          className="px-8 py-3 text-white font-medium bg-[#0A0A0A] rounded-lg"
-                        >
-                          Đi đến Cửa hàng
-                        </Link>
+                        <div className="flex flex-row gap-x-5">
+                          <Link
+                            to="/products"
+                            className="px-8 py-3 text-white font-medium bg-[#0A0A0A] rounded-lg"
+                          >
+                            Đi đến Cửa hàng
+                          </Link>
+                          {canUndo && (
+                            <button
+                              className="px-8 py-3 text-white font-medium bg-gray-700 rounded-lg hover:bg-gray-600"
+                              onClick={handleUndo}
+                            >
+                              Hoàn tác
+                            </button>
+                          )}
+                          {canRedo && (
+                            <button
+                              className="px-8 py-3 text-white font-medium bg-gray-700 rounded-lg hover:bg-gray-600"
+                              onClick={handleRedo}
+                            >
+                              Làm lại
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -176,7 +247,7 @@ function ShoppingCart() {
                         <CheckBox
                           isChecked={
                             !!selectedItems[
-                              `${product.productId}-${product.color}-${product.size}`
+                            `${product.productId}-${product.color}-${product.size}`
                             ]
                           }
                           onChange={() =>
@@ -239,6 +310,22 @@ function ShoppingCart() {
                 >
                   Xóa giỏ hàng
                 </button>
+                {canUndo && (
+                  <button
+                    className="px-10 py-3 text-white font-medium bg-gray-700 rounded-lg hover:bg-gray-600"
+                    onClick={handleUndo}
+                  >
+                    Hoàn tác
+                  </button>
+                )}
+                {canRedo && (
+                  <button
+                    className="px-10 py-3 text-white font-medium bg-gray-700 rounded-lg hover:bg-gray-600"
+                    onClick={handleRedo}
+                  >
+                    Làm lại
+                  </button>
+                )}
               </div>
             )}
           </div>

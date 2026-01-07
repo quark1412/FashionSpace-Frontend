@@ -73,9 +73,13 @@ const cartSlice = createSlice({
       state.items = [];
       Cookies.set("carts", JSON.stringify(state.items));
     },
+    restoreCart(state, action) {
+      state.items = action.payload;
+      Cookies.set("carts", JSON.stringify(state.items));
+    },
   },
 });
 
-export const { addToCart, mergeCart, changeQuantity, removeItem, clearCart } =
+export const { addToCart, mergeCart, changeQuantity, removeItem, clearCart, restoreCart } =
   cartSlice.actions;
 export default cartSlice.reducer;
